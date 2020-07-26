@@ -1,0 +1,34 @@
+<?xml version="1.0"?>
+<launch>
+    <arg name="config" default="$(find roomba_bringup)/config/default.yaml"/>
+
+    <!-- roomba -->
+    <node pkg="ca_driver" type="ca_driver" name="ca_driver" output="screen">
+        <rosparam command="load" file="$(arg config)"/>
+        <param name="robot_model" value="CREATE_2"/>
+    </node>
+
+    <!-- roomba description -->
+    <include file="$(find roomba_description)/launch/display.launch">
+        <arg name="rviz" value="false"/>
+    </include>
+
+    <!-- rplidar -->
+    <node pkg="rplidar_ros" type="rplidarNode" name="rplidar">
+        <param name="channel_type" value="serial"/>
+        <param name="serial_port" value="/dev/rplidar"/>
+        <param name="serial_baurate" value="115200"/>
+        <param name="frame_id" value="laser"/>
+    </node>
+
+    <!-- usb_cam -->
+    <node pkg="usb_cam" type="usb_cam_node" name="usb_cam">
+        <param name="video_device" value="/dev/webcam_c270"/>
+        <param name="image_width" value="640"/>
+        <param name="image_height" value="480"/>
+        <param name="pixel_format" value="yuyv"/>
+        <param name="camera_frame_id" value="usb_cam"/>
+        <param name="io_method" value="mmap"/>
+    </node>
+
+</launch>

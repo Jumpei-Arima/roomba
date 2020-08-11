@@ -1,4 +1,5 @@
 #include <ros/ros.h>
+#include <std_msgs/Empty.h>
 #include <geometry_msgs/Twist.h>
 #include <sensor_msgs/Joy.h>
 
@@ -18,8 +19,11 @@ class TeleopTwistJoy{
 
         //publisher
         ros::Publisher vel_pub;
+        ros::Publisher dock_pub;
+        ros::Publisher undock_pub;
 
         geometry_msgs::Twist joy_vel;
+        bool dock_mode;
         double HZ;
         double MAX_SPEED;
         double MAX_YAWRATE;
@@ -34,12 +38,16 @@ TeleopTwistJoy::TeleopTwistJoy()
 
     //publisher
     vel_pub = nh.advertise<geometry_msgs::Twist>("/cmd_vel",1,true);
+    dock_pub = nh.advertise<std_msgs::Empty>("/dock", 1, true);
+    undock_pub = nh.advertise<std_msgs::Empty>("/undock", 1, true);
 
     //param
     private_nh.param("HZ", HZ, {20});
     private_nh.param("MAX_SPEED", MAX_SPEED, {0.5});
     private_nh.param("MAX_YAWRATE", MAX_YAWRATE, {0.5});
     private_nh.param("VEL_RATIO", VEL_RATIO, {0.5});
+
+    dock_mode = false;
 
 }
 
@@ -68,14 +76,32 @@ void TeleopTwistJoy::JoyCallback(const sensor_msgs::JoyConstPtr& msg)
         joy_vel.linear.x = 0.0;
         joy_vel.angular.z = 0.0;
     }
+    if(joy.buttons[0]==1){
+        dock_mode = true;
+    }
+    if(joy.buttons[1]==1){
+        dock_mode = false;
+    }
 }
 
 void TeleopTwistJoy::process(){
     ros::Rate loop_rate(HZ);
+    std_msgs::Empty empty_msgs;
+    bool pre_mode = dock_mode;
     while(ros::ok()){
-        std::cout << "=== cmd_vel ===" << std::endl;
-        std::cout << joy_vel << std::endl;
-        vel_pub.publish(joy_vel);
+        if(dock_mode){
+            if(pre_mode!=dock_mode){
+                dock_pub.publish(empty_msgs);
+            }
+        }else{
+            if(pre_mode!=dock_mode){
+                undock_pub.publish(empty_msgs);
+            }
+            std::cout << "=== cmd_vel ===" << std::endl;
+            std::cout << joy_vel << std::endl;
+            vel_pub.publish(joy_vel);
+        }
+        pre_mode = dock_mode;
         loop_rate.sleep();
         ros::spinOnce();
     }

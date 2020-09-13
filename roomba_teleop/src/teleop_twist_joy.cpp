@@ -7,6 +7,7 @@ class TeleopTwistJoy{
     public:
         TeleopTwistJoy();
         void JoyCallback(const sensor_msgs::JoyConstPtr& msg);
+        void CommandCallback(const geometry_msgs::TwistConstPtr& msg);
 
         void process();
 
@@ -16,6 +17,7 @@ class TeleopTwistJoy{
 
         //subscriber
         ros::Subscriber joy_sub;
+        ros::Subscriber cmd_sub;
 
         //publisher
         ros::Publisher vel_pub;
@@ -23,7 +25,9 @@ class TeleopTwistJoy{
         ros::Publisher undock_pub;
 
         geometry_msgs::Twist joy_vel;
+        geometry_msgs::Twist cmd_vel;
         bool dock_mode;
+        bool teleop_mode;
         double HZ;
         double MAX_SPEED;
         double MAX_YAWRATE;
@@ -35,6 +39,7 @@ TeleopTwistJoy::TeleopTwistJoy()
 {
     //subscriber
     joy_sub = nh.subscribe("/joy",1, &TeleopTwistJoy::JoyCallback, this);
+    cmd_sub = nh.subscribe("/planner/cmd_vel",1, &TeleopTwistJoy::CommandCallback, this);
 
     //publisher
     vel_pub = nh.advertise<geometry_msgs::Twist>("/cmd_vel",1,true);
@@ -48,7 +53,13 @@ TeleopTwistJoy::TeleopTwistJoy()
     private_nh.param("VEL_RATIO", VEL_RATIO, {0.5});
 
     dock_mode = false;
+    teleop_mode = true;
 
+}
+
+void TeleopTwistJoy::CommandCallback(const geometry_msgs::TwistConstPtr& msg)
+{
+    cmd_vel = *msg;
 }
 
 void TeleopTwistJoy::JoyCallback(const sensor_msgs::JoyConstPtr& msg)
@@ -82,26 +93,35 @@ void TeleopTwistJoy::JoyCallback(const sensor_msgs::JoyConstPtr& msg)
     if(joy.buttons[1]==1){
         dock_mode = false;
     }
+    if(joy.buttons[2]==1){
+        teleop_mode = true;
+    }
+    if(joy.buttons[3]==1){
+        teleop_mode = false;
+    }
 }
 
 void TeleopTwistJoy::process(){
     ros::Rate loop_rate(HZ);
     std_msgs::Empty empty_msgs;
-    bool pre_mode = dock_mode;
+    bool pre_dock_mode = dock_mode;
     while(ros::ok()){
-        if(dock_mode){
-            if(pre_mode!=dock_mode){
-                dock_pub.publish(empty_msgs);
+        if(teleop_mode){
+            if(dock_mode){
+                if(pre_dock_mode!=dock_mode) dock_pub.publish(empty_msgs);
+            }else{
+                if(pre_dock_mode!=false) undock_pub.publish(empty_msgs);
+                std::cout << "=== joy_vel ===" << std::endl;
+                std::cout << joy_vel << std::endl;
+                vel_pub.publish(joy_vel);
             }
         }else{
-            if(pre_mode!=dock_mode){
-                undock_pub.publish(empty_msgs);
-            }
+            if(pre_dock_mode!=false) undock_pub.publish(empty_msgs);
             std::cout << "=== cmd_vel ===" << std::endl;
-            std::cout << joy_vel << std::endl;
-            vel_pub.publish(joy_vel);
+            std::cout << cmd_vel << std::endl;
+            vel_pub.publish(cmd_vel);
         }
-        pre_mode = dock_mode;
+        pre_dock_mode = dock_mode;
         loop_rate.sleep();
         ros::spinOnce();
     }
